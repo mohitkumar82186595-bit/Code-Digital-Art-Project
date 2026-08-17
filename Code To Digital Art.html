@@ -1,0 +1,1067 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Code To Digital Art</title>
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html,body{
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:#020205;
+    font-family:monospace;
+}
+
+canvas{
+    position:fixed;
+    inset:0;
+}
+
+.ui{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+}
+
+.logo{
+    position:absolute;
+    top:30px;
+    left:35px;
+
+    font-size:12px;
+    letter-spacing:4px;
+
+    color:#bffcff;
+
+    text-shadow:
+        0 0 10px #00ffff,
+        0 0 30px #0088ff;
+}
+
+.title{
+    position:absolute;
+
+    top:50%;
+    left:50%;
+
+    transform:translate(-50%,-50%);
+
+    text-align:center;
+
+    pointer-events:none;
+
+    opacity:.75;
+}
+
+.title h1{
+    font-size:clamp(25px,5vw,65px);
+
+    letter-spacing:8px;
+
+    color:white;
+
+    text-shadow:
+        0 0 15px #00ffff,
+        0 0 40px #008cff;
+}
+
+.title p{
+    margin-top:12px;
+
+    font-size:10px;
+
+    letter-spacing:5px;
+
+    color:#7cecff;
+}
+
+.bottom{
+    position:absolute;
+
+    bottom:30px;
+    left:50%;
+
+    transform:translateX(-50%);
+
+    color:#5fdfff;
+
+    font-size:10px;
+
+    letter-spacing:3px;
+
+    opacity:.65;
+}
+
+.scanlines{
+    position:fixed;
+    inset:0;
+
+    pointer-events:none;
+
+    background:
+    repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,255,255,.025) 4px
+    );
+
+    mix-blend-mode:screen;
+}
+
+.vignette{
+    position:fixed;
+    inset:0;
+
+    pointer-events:none;
+
+    background:
+    radial-gradient(
+        circle,
+        transparent 25%,
+        rgba(0,0,0,.65) 100%
+    );
+}
+
+</style>
+</head>
+
+<body>
+
+<canvas id="canvas"></canvas>
+
+<div class="ui">
+
+    <div class="logo">
+        CODING BY MOHIT // DIGITAL LAB
+    </div>
+
+    <div class="title">
+
+        <h1>CODE → ART</h1>
+
+        <p>
+            EVERY CHARACTER BECOMES A PIXEL
+        </p>
+
+    </div>
+
+    <div class="bottom">
+        MOVE • DISTORT • CLICK TO REBUILD
+    </div>
+
+</div>
+
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+
+<script>
+
+const canvas =
+document.getElementById("canvas");
+
+const ctx =
+canvas.getContext("2d");
+
+let W;
+let H;
+let DPR;
+
+function resize(){
+
+    DPR =
+    window.devicePixelRatio || 1;
+
+    W =
+    window.innerWidth;
+
+    H =
+    window.innerHeight;
+
+    canvas.width =
+    W * DPR;
+
+    canvas.height =
+    H * DPR;
+
+    canvas.style.width =
+    W + "px";
+
+    canvas.style.height =
+    H + "px";
+
+    ctx.setTransform(
+        DPR,
+        0,
+        0,
+        DPR,
+        0,
+        0
+    );
+
+}
+
+resize();
+
+window.addEventListener(
+    "resize",
+    resize
+);
+
+
+/* ==================================
+   MOUSE
+================================== */
+
+const mouse = {
+
+    x:W/2,
+
+    y:H/2,
+
+    down:false,
+
+    radius:170
+
+};
+
+window.addEventListener(
+    "mousemove",
+    e=>{
+
+        mouse.x =
+        e.clientX;
+
+        mouse.y =
+        e.clientY;
+
+    }
+);
+
+window.addEventListener(
+    "mousedown",
+    ()=>{
+
+        mouse.down=true;
+
+        explode();
+
+    }
+);
+
+window.addEventListener(
+    "mouseup",
+    ()=>{
+
+        mouse.down=false;
+
+    }
+);
+
+
+/* ==================================
+   PARTICLE CHARACTERS
+================================== */
+
+const chars =
+[
+    "<",
+    ">",
+    "{",
+    "}",
+    "/",
+    "*",
+    "=",
+    "+",
+    "-",
+    ";",
+    "0",
+    "1",
+    "AI",
+    "JS",
+    "CSS"
+];
+
+const particles=[];
+
+const COUNT=1800;
+
+
+/* ==================================
+   DIGITAL BUTTERFLY SHAPE
+================================== */
+
+function butterfly(t){
+
+    /*
+       Parametric butterfly curve
+    */
+
+    const a =
+    t * Math.PI * 2;
+
+    const scale =
+    Math.min(W,H) * .105;
+
+    const x =
+    Math.sin(a) *
+    (
+        Math.exp(
+            Math.cos(a)
+        ) -
+        2*Math.cos(4*a) -
+        Math.pow(
+            Math.sin(a/12),
+            5
+        )
+    );
+
+    const y =
+    Math.cos(a) *
+    (
+        Math.exp(
+            Math.cos(a)
+        ) -
+        2*Math.cos(4*a) -
+        Math.pow(
+            Math.sin(a/12),
+            5
+        )
+    );
+
+    return {
+
+        x:
+        W/2 + x*scale,
+
+        y:
+        H/2 - y*scale
+
+    };
+
+}
+
+
+/* ==================================
+   CREATE PARTICLES
+================================== */
+
+for(let i=0;i<COUNT;i++){
+
+    const target =
+    butterfly(
+        i/COUNT
+    );
+
+    particles.push({
+
+        x:
+        Math.random()*W,
+
+        y:
+        Math.random()*H,
+
+        tx:
+        target.x,
+
+        ty:
+        target.y,
+
+        vx:0,
+
+        vy:0,
+
+        size:
+        Math.random()*5+5,
+
+        char:
+        chars[
+            Math.floor(
+                Math.random()*chars.length
+            )
+        ],
+
+        phase:
+        Math.random()*Math.PI*2,
+
+        speed:
+        .002 +
+        Math.random()*.006,
+
+        delay:
+        Math.random(),
+
+        energy:
+        Math.random(),
+
+        angle:
+        Math.random()*Math.PI*2
+
+    });
+
+}
+
+
+/* ==================================
+   EXTRA DIGITAL STARS
+================================== */
+
+const stars=[];
+
+for(let i=0;i<400;i++){
+
+    stars.push({
+
+        x:
+        Math.random()*W,
+
+        y:
+        Math.random()*H,
+
+        size:
+        Math.random()*1.5,
+
+        alpha:
+        Math.random()
+
+    });
+
+}
+
+
+/* ==================================
+   EXPLOSION
+================================== */
+
+function explode(){
+
+    for(const p of particles){
+
+        const dx =
+        p.x-W/2;
+
+        const dy =
+        p.y-H/2;
+
+        const d =
+        Math.sqrt(
+            dx*dx+
+            dy*dy
+        ) || 1;
+
+        const force =
+        15 +
+        Math.random()*20;
+
+        p.vx =
+        dx/d*force;
+
+        p.vy =
+        dy/d*force;
+
+    }
+
+}
+
+
+/* ==================================
+   GRADIENT
+================================== */
+
+function glowText(
+    text,
+    x,
+    y,
+    size,
+    alpha
+){
+
+    ctx.font =
+    `${size}px monospace`;
+
+    ctx.textAlign="center";
+
+    ctx.fillStyle=
+    `rgba(
+        80,
+        245,
+        255,
+        ${alpha}
+    )`;
+
+    ctx.shadowBlur=15;
+
+    ctx.shadowColor=
+    "#00ffff";
+
+    ctx.fillText(
+        text,
+        x,
+        y
+    );
+
+    ctx.shadowBlur=0;
+
+}
+
+
+/* ==================================
+   BACKGROUND
+================================== */
+
+function background(){
+
+    const gradient =
+    ctx.createRadialGradient(
+
+        W/2,
+        H/2,
+        0,
+
+        W/2,
+        H/2,
+        Math.max(W,H)*.7
+
+    );
+
+    gradient.addColorStop(
+        0,
+        "#061d2a"
+    );
+
+    gradient.addColorStop(
+        .4,
+        "#020b13"
+    );
+
+    gradient.addColorStop(
+        1,
+        "#010103"
+    );
+
+    ctx.fillStyle =
+    gradient;
+
+    ctx.fillRect(
+        0,
+        0,
+        W,
+        H
+    );
+
+}
+
+
+/* ==================================
+   STARS
+================================== */
+
+function drawStars(time){
+
+    for(const s of stars){
+
+        const pulse =
+        .5+
+        Math.sin(
+            time*.002+
+            s.alpha*10
+        )*.5;
+
+        ctx.beginPath();
+
+        ctx.fillStyle=
+        `rgba(
+            80,
+            220,
+            255,
+            ${pulse*.3}
+        )`;
+
+        ctx.arc(
+            s.x,
+            s.y,
+            s.size,
+            0,
+            Math.PI*2
+        );
+
+        ctx.fill();
+
+    }
+
+}
+
+
+/* ==================================
+   PARTICLE CONNECTIONS
+================================== */
+
+function connections(){
+
+    for(
+        let i=0;
+        i<particles.length;
+        i+=4
+    ){
+
+        const p=
+        particles[i];
+
+        for(
+            let j=i+4;
+            j<particles.length;
+            j+=4
+        ){
+
+            const q=
+            particles[j];
+
+            const dx=
+            p.x-q.x;
+
+            const dy=
+            p.y-q.y;
+
+            const d=
+            Math.sqrt(
+                dx*dx+
+                dy*dy
+            );
+
+            if(d<42){
+
+                ctx.beginPath();
+
+                ctx.moveTo(
+                    p.x,
+                    p.y
+                );
+
+                ctx.lineTo(
+                    q.x,
+                    q.y
+                );
+
+                ctx.strokeStyle=
+                `rgba(
+                    0,
+                    220,
+                    255,
+                    ${(
+                        1-d/42
+                    )*.12}
+                )`;
+
+                ctx.lineWidth=.5;
+
+                ctx.stroke();
+
+            }
+
+        }
+
+    }
+
+}
+
+
+/* ==================================
+   PARTICLE UPDATE
+================================== */
+
+function updateParticle(
+    p,
+    time
+){
+
+    /*
+       Target movement
+    */
+
+    const dx =
+    p.tx-p.x;
+
+    const dy =
+    p.ty-p.y;
+
+    p.vx +=
+    dx*.0009;
+
+    p.vy +=
+    dy*.0009;
+
+
+    /*
+       Mouse magnetic distortion
+    */
+
+    const mx =
+    p.x-mouse.x;
+
+    const my =
+    p.y-mouse.y;
+
+    const md =
+    Math.sqrt(
+        mx*mx+
+        my*my
+    );
+
+
+    if(md<mouse.radius){
+
+        const force =
+        (1-md/mouse.radius);
+
+        p.vx +=
+        mx/md *
+        force *
+        .8;
+
+        p.vy +=
+        my/md *
+        force *
+        .8;
+
+    }
+
+
+    /*
+       Floating motion
+    */
+
+    p.vx +=
+    Math.sin(
+        time*.002+
+        p.phase
+    )*.003;
+
+    p.vy +=
+    Math.cos(
+        time*.002+
+        p.phase
+    )*.003;
+
+
+    /*
+       Friction
+    */
+
+    p.vx*=.92;
+
+    p.vy*=.92;
+
+
+    /*
+       Position
+    */
+
+    p.x += p.vx;
+
+    p.y += p.vy;
+
+
+    /*
+       Slowly change target
+    */
+
+    const wave =
+    Math.sin(
+        time*.001+
+        p.phase
+    )*1.2;
+
+    p.x +=
+    wave*.02;
+
+}
+
+
+/* ==================================
+   DRAW PARTICLE
+================================== */
+
+function drawParticle(
+    p,
+    time
+){
+
+    const pulse =
+    1+
+    Math.sin(
+        time*.005+
+        p.phase
+    )*.3;
+
+    const size =
+    p.size*(
+        .8+
+        pulse*.2
+    );
+
+
+    /*
+       Glow
+    */
+
+    ctx.shadowBlur =
+    8;
+
+    ctx.shadowColor =
+    "#00ffff";
+
+
+    /*
+       Random digital color
+    */
+
+    let color;
+
+    if(p.energy>.75){
+
+        color=
+        `rgba(
+            170,
+            255,
+            255,
+            .9
+        )`;
+
+    }
+    else if(p.energy>.45){
+
+        color=
+        `rgba(
+            0,
+            220,
+            255,
+            .8
+        )`;
+
+    }
+    else{
+
+        color=
+        `rgba(
+            60,
+            120,
+            255,
+            .65
+        )`;
+
+    }
+
+
+    ctx.fillStyle=
+    color;
+
+
+    ctx.font=
+    `${size}px monospace`;
+
+
+    ctx.textAlign="center";
+
+
+    ctx.fillText(
+        p.char,
+        p.x,
+        p.y
+    );
+
+
+    ctx.shadowBlur=0;
+
+}
+
+
+/* ==================================
+   CENTRAL LIGHT
+================================== */
+
+function centralGlow(time){
+
+    const r=
+    Math.min(W,H)*.22;
+
+    const gradient=
+    ctx.createRadialGradient(
+
+        W/2,
+        H/2,
+        0,
+
+        W/2,
+        H/2,
+        r
+
+    );
+
+    gradient.addColorStop(
+        0,
+        "rgba(0,255,255,.07)"
+    );
+
+    gradient.addColorStop(
+        .5,
+        "rgba(0,120,255,.025)"
+    );
+
+    gradient.addColorStop(
+        1,
+        "rgba(0,0,0,0)"
+    );
+
+    ctx.fillStyle=
+    gradient;
+
+    ctx.beginPath();
+
+    ctx.arc(
+        W/2,
+        H/2,
+        r,
+        0,
+        Math.PI*2
+    );
+
+    ctx.fill();
+
+
+    /*
+       rotating rings
+    */
+
+    for(let i=0;i<3;i++){
+
+        ctx.beginPath();
+
+        ctx.arc(
+            W/2,
+            H/2,
+            r*(.55+i*.17),
+            time*.0004+i,
+            time*.0004+
+            Math.PI+
+            i
+        );
+
+        ctx.strokeStyle=
+        `rgba(
+            0,
+            240,
+            255,
+            ${.12-i*.025}
+        )`;
+
+        ctx.lineWidth=1;
+
+        ctx.stroke();
+
+    }
+
+}
+
+
+/* ==================================
+   ANIMATION
+================================== */
+
+let time=0;
+
+function animate(){
+
+    time++;
+
+    background();
+
+    drawStars(time);
+
+    centralGlow(time);
+
+    /*
+       Update
+    */
+
+    for(
+        const p of particles
+    ){
+
+        updateParticle(
+            p,
+            time
+        );
+
+    }
+
+
+    /*
+       Connections
+    */
+
+    connections();
+
+
+    /*
+       Draw particles
+    */
+
+    for(
+        const p of particles
+    ){
+
+        drawParticle(
+            p,
+            time
+        );
+
+    }
+
+
+    /*
+       Center label
+    */
+
+    if(
+        Math.abs(
+            mouse.x-W/2
+        )<120 &&
+        Math.abs(
+            mouse.y-H/2
+        )<120
+    ){
+
+        glowText(
+            "NEURAL ART",
+            W/2,
+            H/2+5,
+            12,
+            .55
+        );
+
+    }
+
+
+    requestAnimationFrame(
+        animate
+    );
+
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
